@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Blue Archive - Mobile Web</title>
+    <style>
+        body {
+            margin: 0; padding: 0; background-color: #0F111A; color: white;
+            font-family: Arial, sans-serif; display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden; user-select: none;
+        }
+        #header { 
+            padding: 15px; text-align: center; background-color: #181B28; 
+            font-weight: bold; font-size: 20px; color: #3498DB; 
+        }
+        #card-container { 
+            flex: 1; display: flex; justify-content: center; align-items: center; 
+            padding: 20px; position: relative; overflow: hidden;
+        }
+        #imagem-atual {
+            max-width: 100%; max-height: 100%; border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5); object-fit: contain;
+            transition: transform 0.2s ease-out; /* Faz a animação suave de arrastar */
+        }
+        #info-bar { 
+            background-color: #21263A; padding: 15px; text-align: center; 
+            font-size: 14px; border-top-left-radius: 20px; border-top-right-radius: 20px; min-height: 60px;
+        }
+        .loading { color: #AAB7B8; font-style: italic; font-size: 18px;}
+        .tag-text { color: #27AE60; font-weight: bold;}
+    </style>
+</head>
+<body>
+
+    <div id="header">BLUE ARCHIVE WEB</div>
+    
+    <div id="card-container">
+        <h2 id="loading-text" class="loading">Conectando ao Cérebro...</h2>
+        <img id="imagem-atual" src="" style="display: none;">
+    </div>
+    
+    <div id="info-bar">
+        <span id="tags-display">Aguardando mídia...</span>
+    </div>
+
+    <script>
+        let dadosAtuais = null;
+        const imgElement = document.getElementById('imagem-atual');
+        const loadingText = document.getElementById('loading-text');
+        const tagsDisplay = document.getElementById('tags-display');
+
+        // 1. Pede a próxima foto/GIF para o Python
+        async function carregarProxima() {
+            imgElement.style.display = 'none';
+            loadingText.style.display = 'block';
+            loadingText.innerText = "Buscando no Buffer...";
+            
+            try {
+                const response = await fetch('/api/proxima_imagem');
+                const data = await response.json();
+                
+                if (data.status === "ok") {
+                    dadosAtuais = data.imagem;
+                    imgElement.src = "/" + dadosAtuais.caminho_local;
+                    tagsDisplay.innerHTML = "Tags: <span class='tag-text'>" + dadosAtuais.tags.join(", ") + "</span>";
+                    
+                    imgElement.onload = () => {
+                        loadingText.style.display = 'none';
+                        imgElement.style.display = 'block';
+                        imgElement.style.transform = "translate(0px, 0px) rotate(0deg)";
+                    };
+                } else {
+                    setTimeout(carregarProxima, 1500); // Se o buffer estiver vazio, tenta de novo
+                }
+            } catch (e) {
+                loadingText.innerText = "Erro de conexão com o Python.";
+                setTimeout(carregarProxima, 3000);
+            }
+        }
+
+        // 2. Envia a nota para o Python salvar no JSON
+        async function avaliar(nota) {
+            if (!dadosAtuais) return;
+            
+            const payload = { tags: dadosAtuais.tags, nota: nota, url_origem: dadosAtuais.url_origem };
+            dadosAtuais = null; // Trava para não avaliar duas vezes sem querer
+
+            fetch('/api/avaliar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            carregarProxima();
+        }
+
+        // ==========================================
+        // 3. MOTOR DE GESTOS (SWIPE / TINDER)
+        // ==========================================
+        let startX, startY, endX, endY;
+        const card = document.getElementById('card-container');
+
+        // Captura o dedo tocando na tela do celular
+        card.addEventListener('touchstart', e => {
+            startX = e.changedTouches[0].screenX;
+            startY = e.changedTouches[0].screenY;
+        });
+
+        // Captura o dedo soltando a tela
+        card.addEventListener('touchend', e => {
+            endX = e.changedTouches[0].screenX;
+            endY = e.changedTouches[0].screenY;
+            processarGesto();
+        });
+
+        // Suporte para testar com o Mouse no PC também
+        let isMouseDown = false;
+        card.addEventListener('mousedown', e => { isMouseDown = true; startX = e.clientX; startY = e.clientY; });
+        card.addEventListener('mouseup', e => { if(isMouseDown){ endX = e.clientX; endY = e.clientY; isMouseDown = false; processarGesto(); }});
+
+        // Toque duplo rápido = Favorito (Amei)
+        card.addEventListener('dblclick', () => avaliar(5));
+
+        function processarGesto() {
+            if (!dadosAtuais) return;
+            
+            let diffX = endX - startX;
+            let diffY = endY - startY;
+            let limite = 60; // Distância mínima para validar o arrasto
+
+            if (Math.abs(diffX) > Math.abs(diffY)) {
+                // Arrasto Horizontal
+                if (diffX > limite) {
+                    imgElement.style.transform = "translate(300px, 0px) rotate(15deg)"; // Joga foto pra direita
+                    setTimeout(() => avaliar(2), 200); // Gostei
+                } else if (diffX < -limite) {
+                    imgElement.style.transform = "translate(-300px, 0px) rotate(-15deg)"; // Joga foto pra esquerda
+                    setTimeout(() => avaliar(-1), 200); // Reprovado
+                }
+            } else {
+                // Arrasto Vertical
+                if (diffY < -limite) {
+                    imgElement.style.transform = "translate(0px, -300px)"; // Joga pra cima
+                    setTimeout(() => avaliar(null), 200); // Skip
+                } else if (diffY > limite) {
+                    imgElement.style.transform = "translate(0px, 300px)"; // Joga pra baixo
+                    setTimeout(() => avaliar(0), 200); // Neutro
+                }
+            }
+        }
+
+        // Liga as engrenagens ao abrir a página!
+        carregarProxima();
+    </script>
+</body>
+</html>

@@ -97,4 +97,5 @@ if __name__ == '__main__':
     print("Abra o navegador e acesse: http://127.0.0.1:5000\n")
     
     # Roda o site na porta 5000 acessível na sua rede Wi-Fi (0.0.0.0)
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    porta = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=porta, debug=False)

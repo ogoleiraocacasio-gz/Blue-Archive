@@ -84,18 +84,19 @@ def avaliar():
     return jsonify({"status": "sucesso"})
 
 # ==========================================
-# INICIAR O SERVIDOR
+# INICIAR O MOTOR EM SEGUNDO PLANO
+# ==========================================
+# Ao deixar fora do if __name__ == '__main__', o Gunicorn da nuvem vai executar isso!
+if not os.path.exists("temp_imagens"): 
+    os.makedirs("temp_imagens")
+
+print("Iniciando Motor de Downloads...")
+threading.Thread(target=worker, daemon=True).start()
+
+# ==========================================
+# INICIAR O SERVIDOR DE TESTE LOCAL
 # ==========================================
 if __name__ == '__main__':
-    if not os.path.exists("temp_imagens"): 
-        os.makedirs("temp_imagens")
-    
-    print("Iniciando Motor de Downloads...")
-    threading.Thread(target=worker, daemon=True).start()
-    
-    print("\n🌐 SERVIDOR WEB ATIVO! 🌐")
-    print("Abra o navegador e acesse: http://127.0.0.1:5000\n")
-    
-    # Roda o site na porta 5000 acessível na sua rede Wi-Fi (0.0.0.0)
+    print("\n🌐 SERVIDOR LOCAL ATIVO! 🌐")
     porta = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=porta, debug=False)
